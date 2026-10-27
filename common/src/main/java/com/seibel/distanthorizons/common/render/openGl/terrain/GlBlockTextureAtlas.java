@@ -22,6 +22,7 @@ package com.seibel.distanthorizons.common.render.openGl.terrain;
 import com.seibel.distanthorizons.common.wrappers.minecraft.MinecraftGLWrapper;
 import com.seibel.distanthorizons.core.dataObjects.render.textures.BlockTextureRegistry;
 import com.seibel.distanthorizons.core.render.AbstractBlockTextureAtlas;
+import com.seibel.distanthorizons.core.render.DhApiRenderProxy;
 import com.seibel.distanthorizons.coreapi.util.TextureUtil;
 import org.lwjgl.opengl.GL33;
 
@@ -71,28 +72,40 @@ public class GlBlockTextureAtlas extends AbstractBlockTextureAtlas
 	@Override
 	protected void tryCreateOrResize(int width, int height)
 	{
-		if (this.textureId != 0)
+		int previousTexture = GL33.glGetInteger(GL33.GL_TEXTURE_BINDING_2D);
+		if (previousTexture == this.textureId) { previousTexture = 0; }
+		DhApiRenderProxy.getDhBlockRatioAtlasTextureGlId = -1;
+		try
 		{
-			GL33.glDeleteTextures(this.textureId);
+			if (this.textureId != 0)
+			{
+				GL33.glDeleteTextures(this.textureId);
+			}
+
+			this.textureId = GL33.glGenTextures();
+			GL33.glBindTexture(GL33.GL_TEXTURE_2D, this.textureId);
+			GL33.glTexImage2D(
+				GL33.GL_TEXTURE_2D, 0,
+				GL33.GL_RGBA8,
+				width, height,
+				0,
+				GL33.GL_RGBA, GL33.GL_UNSIGNED_BYTE,
+				(ByteBuffer) null
+			);
+
+			// nearest filtering keeps the blocky look and prevents
+			// texels bleeding between unrelated tiles on adjacent layers
+			GL33.glTexParameteri(GL33.GL_TEXTURE_2D, GL33.GL_TEXTURE_MIN_FILTER, GL33.GL_NEAREST_MIPMAP_LINEAR);
+			GL33.glTexParameteri(GL33.GL_TEXTURE_2D, GL33.GL_TEXTURE_MAG_FILTER, GL33.GL_NEAREST);
+			GL33.glTexParameteri(GL33.GL_TEXTURE_2D, GL33.GL_TEXTURE_WRAP_S, GL33.GL_REPEAT);
+			GL33.glTexParameteri(GL33.GL_TEXTURE_2D, GL33.GL_TEXTURE_WRAP_T, GL33.GL_REPEAT);
+			DhApiRenderProxy.getDhBlockRatioAtlasTextureGlId = this.textureId;
 		}
-		
-		this.textureId = GL33.glGenTextures();
-		GL33.glBindTexture(GL33.GL_TEXTURE_2D, this.textureId);
-		GL33.glTexImage2D(
-			GL33.GL_TEXTURE_2D, 0,
-			GL33.GL_RGBA8,
-			width, height,
-			0,
-			GL33.GL_RGBA, GL33.GL_UNSIGNED_BYTE,
-			(ByteBuffer) null
-		);
-		
-		// nearest filtering keeps the blocky look and prevents
-		// texels bleeding between unrelated tiles on adjacent layers
-		GL33.glTexParameteri(GL33.GL_TEXTURE_2D, GL33.GL_TEXTURE_MIN_FILTER, GL33.GL_NEAREST_MIPMAP_LINEAR);
-		GL33.glTexParameteri(GL33.GL_TEXTURE_2D, GL33.GL_TEXTURE_MAG_FILTER, GL33.GL_NEAREST);
-		GL33.glTexParameteri(GL33.GL_TEXTURE_2D, GL33.GL_TEXTURE_WRAP_S, GL33.GL_REPEAT);
-		GL33.glTexParameteri(GL33.GL_TEXTURE_2D, GL33.GL_TEXTURE_WRAP_T, GL33.GL_REPEAT);
+		finally
+		{
+			// Allocation must not replace the lightmap or an Iris sampler binding.
+			GL33.glBindTexture(GL33.GL_TEXTURE_2D, previousTexture);
+		}
 	}
 	
 	public int getTextureId() { return this.textureId; }
@@ -178,11 +191,13 @@ public class GlBlockTextureAtlas extends AbstractBlockTextureAtlas
 		private int unpackAlignment = 0;
 		
 		private int textureBinding = 0;
+		private int activeTexture = GL33.GL_TEXTURE0;
 		
 		
 		
 		public void saveState()
 		{
+			this.activeTexture = GL33.glGetInteger(GL33.GL_ACTIVE_TEXTURE);
 			this.unpackRowLength = GL33.glGetInteger(GL33.GL_UNPACK_ROW_LENGTH);
 			this.unpackSkipPixels = GL33.glGetInteger(GL33.GL_UNPACK_SKIP_PIXELS);
 			this.unpackSkipRows = GL33.glGetInteger(GL33.GL_UNPACK_SKIP_ROWS);
@@ -201,6 +216,7 @@ public class GlBlockTextureAtlas extends AbstractBlockTextureAtlas
 			GL33.glPixelStorei(GL33.GL_UNPACK_SKIP_PIXELS, this.unpackSkipPixels);
 			GL33.glPixelStorei(GL33.GL_UNPACK_SKIP_ROWS, this.unpackSkipRows);
 			GL33.glPixelStorei(GL33.GL_UNPACK_ALIGNMENT, this.unpackAlignment);
+			GLMC.glActiveTexture(this.activeTexture);
 		}
 		
 	}

@@ -122,11 +122,13 @@ public class GlDhMetaRenderer implements IDhMetaRenderer
 		
 		this.bindLightmap(renderParams.lightmap);
 		
-		if (Config.Client.Advanced.Graphics.Texture.enableTexturedLods.get())
+		// Iris also needs the neutral atlas tile when DH textures are disabled.
+		// Iris owns its sampler bindings; bind unit 1 only for DH's own shader.
+		boolean irisInactive = this.irisShadersInactive();
+		if (Config.Client.Advanced.Graphics.Texture.enableTexturedLods.get() || !irisInactive)
 		{
 			GlBlockTextureAtlas.INSTANCE.uploadPendingTiles();
-			GlBlockTextureAtlas.INSTANCE.bind();
-			DhApiRenderProxy.getDhBlockRatioAtlasTextureGlId = GlBlockTextureAtlas.INSTANCE.getTextureId();
+			if (irisInactive) { GlBlockTextureAtlas.INSTANCE.bind(); }
 		}
 	}
 	private void setGLState(
